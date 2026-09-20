@@ -7,10 +7,10 @@ import {
   ButtonStyle,
 } from 'discord.js';
 import { ROLES, CHANNELS } from '../../config.js';
+import { createBookingModal, readBookingModal } from './bookingForm.js';
+import { ensureTicketCategory } from './ticketCategory.js';
 
-// Khóa in-memory chống tạo ticket trùng lặp đồng thời (Concurrency Mutex)
 const pendingCreations = new Set();
-// Bộ nhớ chống bấm đóng liên tiếp nhiều lần
 const closingChannels = new Set();
 
 export const TICKET_TYPES = {
@@ -20,7 +20,7 @@ export const TICKET_TYPES = {
     color: '#f48fb1',
     rolesToPing: [ROLES.ANBU, ROLES.GUARD],
     welcomeMessage:
-      'Xin chào bạn! Đây là không gian riêng tư để bạn trao đổi và đặt lịch hẹn tâm sự/chơi game/hát cùng các Performer. Đội ngũ Làng Lá sẽ phản hồi ngay nhé.',
+      'Yêu cầu booking của bạn đã được ghi nhận. Guard và nhóm đào phù hợp sẽ tiếp nhận tại phòng này.',
   },
   ticket_apply: {
     name: 'apply',
@@ -40,20 +40,58 @@ export const TICKET_TYPES = {
   },
 };
 
+export async function handleBookingStart(interaction) {
+  try {
+    await interaction.showModal(createBookingModal());
+  } catch (error) {
+    console.error('[Booking] ❌ Không thể mở form booking:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: '❌ Không thể mở form booking lúc này. Vui lòng thử lại.',
+        ephemeral: true,
+      }).catch(() => {});
+    }
+  }
+}
+
+export async function handleBookingModalSubmit(interaction) {
+  const bookingData = readBookingModal(interaction);
+
+  if (!bookingData.service) {
+    return interaction.reply({
+      content: '❌ Dịch vụ là thông tin bắt buộc.',
+      ephemeral: true,
+    });
+  }
+
+  if (!['prince', 'princess'].includes(bookingData.performerType)) {
+    return interaction.reply({
+      content: '❌ Vui lòng chọn PRINCE hoặc PRINCESS.',
+      ephemeral: true,
+    });
+  }
+
+  return handleTicketCreate(interaction, {
+    ticketTypeId: 'ticket_booking',
+    bookingData,
+  });
+}
+
 /**
- * Xử lý tạo kênh Ticket riêng khi người dùng bấm nút
- * @param {import('discord.js').ButtonInteraction} interaction
+ * Tạo ticket cho Booking / Apply / Support.
+ * Booking có thể kèm dữ liệu đã lấy từ modal.
+ * @param {import('discord.js').RepliableInteraction} interaction
+ * @param {{ticketTypeId?: string, bookingData?: {service:string, performerType:string, budget:string|null, time:string|null}|null}} options
  */
-export async function handleTicketCreate(interaction) {
-  const ticketConfig = TICKET_TYPES[interaction.customId];
+export async function handleTicketCreate(interaction, options = {}) {
+  const ticketTypeId = options.ticketTypeId || interaction.customId;
+  const bookingData = options.bookingData || null;
+  const ticketConfig = TICKET_TYPES[ticketTypeId];
   if (!ticketConfig) return;
 
   const user = interaction.user;
   const ticketKey = `${user.id}:${ticketConfig.name}`;
 
-  // ==========================================
-  // P0: CHỐNG TẠO TICKET TRÙNG LẶP ĐỒNG THỜI (MUTEX LOCK)
-  // ==========================================
   if (pendingCreations.has(ticketKey)) {
     return interaction.reply({
       content: `⚠️ Đang xử lý tạo phòng ${ticketConfig.title} cho bạn, vui lòng đợi trong giây lát...`,
@@ -67,34 +105,45 @@ export async function handleTicketCreate(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
     const guild = interaction.guild;
+    const requestsCategory = await ensureTicketCategory(guild);
 
-    // ==========================================
-    // P0: TICKET KEY = userId + type (DETERMINISTIC)
-    // Tên phòng chỉ là hiển thị trực quan; định danh thực tế lưu trong Channel Topic.
-    // ==========================================
     const existingChannel = guild.channels.cache.find(
-      (c) =>
-        c.type === ChannelType.GuildText &&
-        c.parentId === CHANNELS.SUPPORT_CATEGORY &&
-        c.topic &&
-        c.topic.includes(`owner:${user.id}`) &&
-        c.topic.includes(`type:${ticketConfig.name}`)
+      (channel) =>
+        channel.type === ChannelType.GuildText &&
+        channel.topic?.includes('konoha:ticket') &&
+        channel.topic.includes(`owner:${user.id}`) &&
+        channel.topic.includes(`type:${ticketConfig.name}`)
     );
 
     if (existingChannel) {
+      if (existingChannel.parentId !== requestsCategory.id) {
+        await existingChannel.setParent(requestsCategory.id, { lockPermissions: false }).catch(() => {});
+      }
+
       return interaction.editReply({
-        content: `⚠️ Bạn đã có một phòng ${ticketConfig.title} đang mở tại <#${existingChannel.id}>. Vui lòng chuyển qua đó nhé!`,
+        content: `⚠️ Bạn đã có một phòng ${ticketConfig.title} đang mở tại <#${existingChannel.id}>.`,
       });
     }
 
-    // Thiết lập quyền riêng tư: chỉ người tạo ticket và các role liên quan mới thấy
+    const dynamicPerformerRole =
+      bookingData?.performerType === 'prince'
+        ? ROLES.PRINCE
+        : bookingData?.performerType === 'princess'
+          ? ROLES.PRINCESS
+          : null;
+
+    const roleIds = [...new Set([
+      ...ticketConfig.rolesToPing,
+      dynamicPerformerRole,
+    ].filter(Boolean))];
+
     const permissionOverwrites = [
       {
-        id: guild.id, // @everyone cấm xem
+        id: guild.id,
         deny: [PermissionsBitField.Flags.ViewChannel],
       },
       {
-        id: user.id, // Người tạo được xem và gửi tin nhắn
+        id: user.id,
         allow: [
           PermissionsBitField.Flags.ViewChannel,
           PermissionsBitField.Flags.SendMessages,
@@ -104,7 +153,7 @@ export async function handleTicketCreate(interaction) {
         ],
       },
       {
-        id: guild.client.user.id, // Bot
+        id: guild.client.user.id,
         allow: [
           PermissionsBitField.Flags.ViewChannel,
           PermissionsBitField.Flags.SendMessages,
@@ -114,9 +163,8 @@ export async function handleTicketCreate(interaction) {
       },
     ];
 
-    // Thêm quyền cho các role phụ trách
-    for (const roleId of ticketConfig.rolesToPing) {
-      if (roleId && guild.roles.cache.has(roleId)) {
+    for (const roleId of roleIds) {
+      if (guild.roles.cache.has(roleId)) {
         permissionOverwrites.push({
           id: roleId,
           allow: [
@@ -128,25 +176,25 @@ export async function handleTicketCreate(interaction) {
       }
     }
 
-    // Tên kênh: hiển thị trực quan (display only)
-    const sanitizedUsername = user.username.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'user';
+    const sanitizedUsername =
+      user.username.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'user';
     const channelName = `${ticketConfig.name}-${sanitizedUsername}`;
-    
-    // Topic: Chứa metadata định danh chuẩn xác (ticket-key: userId + type)
-    const channelTopic = `konoha:ticket | type:${ticketConfig.name} | owner:${user.id} | tag:${user.tag} | created:${Date.now()}`;
-    const parentCategory = CHANNELS.SUPPORT_CATEGORY || null;
+    const performerMeta = bookingData?.performerType
+      ? ` | performer:${bookingData.performerType}`
+      : '';
+    const channelTopic =
+      `konoha:ticket | type:${ticketConfig.name} | owner:${user.id}${performerMeta} | created:${Date.now()}`;
 
     const ticketChannel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      parent: parentCategory,
+      parent: requestsCategory.id,
       topic: channelTopic,
       permissionOverwrites,
     });
 
-    // Embed chào mừng bên trong phòng ticket
-    const pings = ticketConfig.rolesToPing
-      .filter((id) => id && guild.roles.cache.has(id))
+    const pings = roleIds
+      .filter((id) => guild.roles.cache.has(id))
       .map((id) => `<@&${id}>`)
       .join(' ');
 
@@ -154,9 +202,38 @@ export async function handleTicketCreate(interaction) {
       .setColor(ticketConfig.color)
       .setTitle(ticketConfig.title)
       .setDescription(
-        `Chào <@${user.id}>,\n\n${ticketConfig.welcomeMessage}\n\nNhấn nút **Đóng Ticket** bên dưới khi buổi trao đổi kết thúc.`
+        `Chào <@${user.id}>,\n\n${ticketConfig.welcomeMessage}\n\nNhấn nút **Đóng Ticket** khi trao đổi kết thúc.`
       )
-      .setFooter({ text: 'Konoha Ticket System • Bảo mật 24/7' });
+      .setFooter({ text: 'Konoha Ticket System' })
+      .setTimestamp();
+
+    if (bookingData) {
+      const performerLabel =
+        bookingData.performerType === 'prince'
+          ? (ROLES.PRINCE ? `<@&${ROLES.PRINCE}>` : '王子・PRINCE')
+          : (ROLES.PRINCESS ? `<@&${ROLES.PRINCESS}>` : '姫君・PRINCESS');
+
+      insideEmbed.addFields(
+        {
+          name: 'Dịch vụ',
+          value: bookingData.service,
+        },
+        {
+          name: 'Đào',
+          value: performerLabel,
+          inline: true,
+        },
+        {
+          name: 'Ngân sách',
+          value: bookingData.budget || 'Không ghi',
+          inline: true,
+        },
+        {
+          name: 'Thời gian',
+          value: bookingData.time || 'Linh hoạt',
+        }
+      );
+    }
 
     const closeRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -172,7 +249,6 @@ export async function handleTicketCreate(interaction) {
       components: [closeRow],
     });
 
-    // Ghi log vào kênh ticket-log nếu cấu hình tồn tại
     if (CHANNELS.TICKET_LOG) {
       const logChannel = guild.channels.cache.get(CHANNELS.TICKET_LOG);
       if (logChannel) {
@@ -183,35 +259,45 @@ export async function handleTicketCreate(interaction) {
             `• **Người tạo:** <@${user.id}> (${user.tag})\n• **Loại:** ${ticketConfig.title}\n• **Kênh:** <#${ticketChannel.id}>`
           )
           .setTimestamp();
+
+        if (bookingData) {
+          logEmbed.addFields(
+            { name: 'Dịch vụ', value: bookingData.service },
+            {
+              name: 'Nhóm đào',
+              value: bookingData.performerType === 'prince' ? '王子・PRINCE' : '姫君・PRINCESS',
+              inline: true,
+            },
+            { name: 'Ngân sách', value: bookingData.budget || 'Không ghi', inline: true },
+            { name: 'Thời gian', value: bookingData.time || 'Linh hoạt' }
+          );
+        }
+
         await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
       }
     }
 
     await interaction.editReply({
-      content: `✅ Đã mở phòng trao đổi riêng cho bạn tại: <#${ticketChannel.id}>`,
+      content: `✅ Đã mở phòng ${ticketConfig.name} cho bạn tại <#${ticketChannel.id}>.`,
     });
   } catch (error) {
     console.error('[Ticket] ❌ Lỗi khi tạo kênh ticket:', error);
-    await interaction.editReply({
-      content: '❌ Đã có lỗi xảy ra khi tạo phòng ticket. Vui lòng thử lại sau hoặc liên hệ Admin!',
-    });
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({
+        content: '❌ Đã có lỗi xảy ra khi tạo phòng. Vui lòng thử lại hoặc liên hệ Admin.',
+      }).catch(() => {});
+    }
   } finally {
-    // Luôn giải phóng khóa mutex
     pendingCreations.delete(ticketKey);
   }
 }
 
-/**
- * Xử lý đóng ticket với kiểm tra quyền trực tiếp trong mã nguồn (P0 Authorization)
- * @param {import('discord.js').ButtonInteraction} interaction
- */
 export async function handleTicketClose(interaction) {
   const channel = interaction.channel;
   const guild = interaction.guild;
   const user = interaction.user;
   const member = interaction.member;
 
-  // Kiểm tra cờ đang đóng
   if (closingChannels.has(channel.id)) {
     return interaction.reply({
       content: '⏳ Kênh này đang trong tiến trình đóng, vui lòng đợi...',
@@ -219,23 +305,20 @@ export async function handleTicketClose(interaction) {
     });
   }
 
-  // ==========================================
-  // P0: AUTHORIZE CLOSE IN CODE (KHÔNG CHỈ DỰA VÀO QUYỀN DISCORD KÊNH)
-  // ==========================================
   const topic = channel.topic || '';
   const ownerMatch = topic.match(/owner:(\d+)/);
   const ownerId = ownerMatch ? ownerMatch[1] : null;
 
   const isOwner = ownerId && user.id === ownerId;
   const staffRoles = [ROLES.HOKAGE, ROLES.ANBU, ROLES.GUARD].filter(Boolean);
-  const isStaff = member?.roles?.cache?.some((r) => staffRoles.includes(r.id));
+  const isStaff = member?.roles?.cache?.some((role) => staffRoles.includes(role.id));
   const hasAdminPerm =
     member?.permissions?.has(PermissionsBitField.Flags.ManageChannels) ||
     member?.permissions?.has(PermissionsBitField.Flags.Administrator);
 
   if (!isOwner && !isStaff && !hasAdminPerm) {
     return interaction.reply({
-      content: `❌ Bạn không có quyền đóng ticket này. Chỉ chủ phòng (<@${ownerId || 'chủ sở hữu'}>) hoặc Ban Quản Trị mới có thể đóng!`,
+      content: '❌ Bạn không có quyền đóng ticket này.',
       ephemeral: true,
     });
   }
@@ -246,7 +329,6 @@ export async function handleTicketClose(interaction) {
     content: '🔒 Kênh này sẽ được đóng và tự động xóa sau 5 giây...',
   });
 
-  // Ghi log đóng ticket
   if (CHANNELS.TICKET_LOG) {
     const logChannel = guild.channels.cache.get(CHANNELS.TICKET_LOG);
     if (logChannel) {
@@ -264,8 +346,8 @@ export async function handleTicketClose(interaction) {
   setTimeout(async () => {
     try {
       await channel.delete();
-    } catch (err) {
-      console.error('[Ticket Close] ❌ Không thể xóa kênh ticket:', err.message);
+    } catch (error) {
+      console.error('[Ticket Close] ❌ Không thể xóa kênh ticket:', error.message);
     } finally {
       closingChannels.delete(channel.id);
     }
