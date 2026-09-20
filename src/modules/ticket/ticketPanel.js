@@ -19,7 +19,7 @@ export function createTicketPanelV2(guild) {
     `Trạm tiếp nhận yêu cầu & hỗ trợ của **${guildName}**.`,
     '',
     '💌 **Đặt lịch hẹn (Booking)**',
-    `Tâm sự, sẻ chia và trò chuyện riêng cùng ${princessMention} hoặc ${princeMention}.`,
+    `Nhập dịch vụ, chọn ${princeMention} / ${princessMention}; ngân sách và thời gian có thể để trống.`,
     '',
     '📝 **Ứng tuyển (Apply)**',
     'Đăng ký gia nhập và trở thành một phần của đại gia đình Konoha.',
