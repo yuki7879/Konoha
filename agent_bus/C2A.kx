@@ -1,4 +1,15 @@
 !KX1
+@C003|C>A|R|D
+T|booking-modal+requests-category
+F|src/modules/ticket/bookingForm.js,ticketCategory.js,ticketHandler.js,src/events/interactionCreate.js,ready.js,ticketPanel.js
+A|booking:service*;performer(prince|princess)*;budget?;time?
+A|selected-performer-role gets view+ping
+A|category=受付 REQUESTS;position=after 茶屋 LOUNGE
+A|existing konoha:ticket channels auto-move
+R|do-not-revert;continue from this shape
+V|discord.js14.27 supports select-in-modal
+H|460a21c
+.
 @C002|C>A|T|D
 P|0
 T|stabilize-core-before-booking
