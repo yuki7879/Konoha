@@ -2,6 +2,37 @@ import { EmbedBuilder } from 'discord.js';
 import { ROLES, CHANNELS, config } from '../../config.js';
 
 /**
+ * Tạo Embed chào mừng thành viên mới theo phong cách Konoha (tái sử dụng giữa Handler và Test Scripts)
+ * @param {import('discord.js').Guild} guild
+ * @param {import('discord.js').GuildMember|import('discord.js').User} memberOrUser
+ * @returns {EmbedBuilder}
+ */
+export function createWelcomeEmbed(guild, memberOrUser) {
+  const guildName = config.guild?.name || guild?.name || '୨୧ 木ノ葉・KONOHA ୨୧';
+  const guideMention = ROLES.GUIDE ? `<@&${ROLES.GUIDE}>` : '@案内役・GUIDE';
+  const memberMention = `<@${memberOrUser.id}>`;
+
+  const welcomeDescription = [
+    `Hây yooooo chào mừng ${memberMention} đến với **${guildName}**.`,
+    '',
+    'Một hành trình mới vừa bắt đầu tại Konoha.',
+    'Mong bạn sẽ tìm thấy những cuộc trò chuyện thú vị, những người bạn mới và thật nhiều khoảnh khắc đáng nhớ.',
+    '',
+    `${guideMention} ơi, ra chào đón khách quý nhé! Nếu cần hỗ trợ, đội ngũ Konoha luôn sẵn sàng.`,
+    '',
+    '「 Chúc bạn có một trải nghiệm thật đẹp tại Konoha. 」',
+  ].join('\n');
+
+  const avatar = typeof memberOrUser.displayAvatarURL === 'function' ? memberOrUser.displayAvatarURL({ dynamic: true }) : null;
+  const thumbnailURL = guild?.iconURL({ dynamic: true, size: 512 }) || avatar;
+
+  return new EmbedBuilder()
+    .setColor('#f48fb1') // Màu hồng hoa anh đào phong cách Konoha
+    .setDescription(welcomeDescription)
+    .setThumbnail(thumbnailURL);
+}
+
+/**
  * Xử lý sự kiện khi có thành viên mới (hoặc bot mới) tham gia server
  * @param {import('discord.js').GuildMember} member
  */
@@ -22,7 +53,6 @@ export async function handleGuildMemberAdd(member) {
         });
         console.log(`[AutoRole] ✅ Đã cấp role BOT (${ROLES.BOT}) cho ${member.user.tag}`);
       }
-      // Đối với bot thường không gửi thông báo chào mừng vào kênh chat chung để tránh spam
       return;
     } else {
       if (ROLES.CUSTOM) {
@@ -42,31 +72,8 @@ export async function handleGuildMemberAdd(member) {
       return;
     }
 
-    const guildName = config.guild?.name || guild.name || '୨୧ 木ノ葉・KONOHA ୨୧';
-    const guideMention = ROLES.GUIDE ? `<@&${ROLES.GUIDE}>` : '@案内役・GUIDE';
-    const memberMention = `<@${member.id}>`;
+    const welcomeEmbed = createWelcomeEmbed(guild, member);
 
-    // Nội dung văn bản chào mừng chuẩn xác theo ảnh thiết kế
-    const welcomeDescription = [
-      `Hây yooooo chào mừng ${memberMention} đến với **${guildName}**.`,
-      '',
-      'Một hành trình mới vừa bắt đầu tại Konoha.',
-      'Mong bạn sẽ tìm thấy những cuộc trò chuyện thú vị, những người bạn mới và thật nhiều khoảnh khắc đáng nhớ.',
-      '',
-      `${guideMention} ơi, ra chào đón khách quý nhé! Nếu cần hỗ trợ, đội ngũ Konoha luôn sẵn sàng.`,
-      '',
-      '「 Chúc bạn có một trải nghiệm thật đẹp tại Konoha. 」',
-    ].join('\n');
-
-    // Lấy ảnh đại diện server làm thumbnail mặc định (hoặc banner/avatar)
-    const thumbnailURL = guild.iconURL({ dynamic: true, size: 512 }) || member.user.displayAvatarURL({ dynamic: true });
-
-    const welcomeEmbed = new EmbedBuilder()
-      .setColor('#f48fb1') // Màu hồng hoa anh đào phong cách Konoha
-      .setDescription(welcomeDescription)
-      .setThumbnail(thumbnailURL);
-
-    // Gửi tin nhắn vào kênh main-chat (chỉ dùng Embed)
     await mainChatChannel.send({
       embeds: [welcomeEmbed],
     });

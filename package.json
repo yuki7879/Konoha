@@ -9,8 +9,12 @@
     "dev": "node --watch src/index.js",
     "test:welcome": "node scripts/test-welcome.js",
     "test:boost": "node scripts/test-boost.js",
+    "test:smoke": "node scripts/test-smoke.js",
     "send:ticket": "node scripts/send-ticket-panel.js",
     "push": "node scripts/git-push.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "discord.js": "^14.17.3",

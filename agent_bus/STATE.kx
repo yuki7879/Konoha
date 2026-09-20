@@ -4,9 +4,9 @@ BR|main
 RT|Node>=18
 DJ|14.27.0
 EP|src/index.js
-M|welcome,boost,ticket-v2
+M|welcome,boost,ticket-v2,runtime-store
 CFG|config.json
-SEC|env-only
+SEC|env-only;least-privilege
 BUS|KX1
-N|core-stabilize>booking-flow>open-orders>shift
-H|053412d
+N|booking-state-machine>open-orders>atomic-claim>shift
+H|HEAD

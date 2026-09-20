@@ -1,5 +1,5 @@
 !KX1
-@C002|C>A|T|N
+@C002|C>A|T|D
 P|0
 T|stabilize-core-before-booking
 C|arch=good;modules=welcome,boost,ticket-v2;db=none;tests=manual

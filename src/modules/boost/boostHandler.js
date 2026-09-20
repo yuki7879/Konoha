@@ -1,6 +1,10 @@
 import { EmbedBuilder } from 'discord.js';
 import { ROLES, CHANNELS, config } from '../../config.js';
 
+// Deduplication cache: lưu memberId -> timestamp lần gửi cuối để tránh thông báo trùng lặp
+const recentBoostNotifications = new Map();
+const BOOST_DEDUPE_WINDOW_MS = 60 * 1000; // 60 giây
+
 /**
  * Tìm kênh boost phù hợp trong server
  * @param {import('discord.js').Guild} guild
@@ -27,11 +31,53 @@ export function resolveBoostChannel(guild) {
 }
 
 /**
+ * Tạo Embed cảm ơn Nitro Boost chuẩn phong cách Konoha (tái sử dụng giữa Handler và Test Scripts)
+ * @param {import('discord.js').Guild} guild
+ * @param {import('discord.js').GuildMember|import('discord.js').User} memberOrUser
+ * @returns {EmbedBuilder}
+ */
+export function createBoostEmbed(guild, memberOrUser) {
+  const guildName = config.guild?.name || guild?.name || '୨୧ 木ノ葉・KONOHA ୨୧';
+  const guideMention = ROLES.GUIDE ? `<@&${ROLES.GUIDE}>` : '@案内役・GUIDE';
+  const guardMention = ROLES.GUARD ? `<@&${ROLES.GUARD}>` : '@護衛・GUARD';
+  const memberMention = `<@${memberOrUser.id}>`;
+
+  const boostDescription = [
+    `${guideMention} ${guardMention} đâu ra cảm ơn ${memberMention} đã Boost cho **${guildName}** đi nào.`,
+    '',
+    'Một chiếc Boost nhỏ, nhưng là một sự ủng hộ thật lớn dành cho Konoha.',
+    'Cảm ơn bạn vì đã góp phần giúp ngôi làng ngày càng đẹp và phát triển hơn.',
+    '',
+    '「 Konoha trân trọng sự đồng hành của bạn. 」',
+  ].join('\n');
+
+  const avatar = typeof memberOrUser.displayAvatarURL === 'function' ? memberOrUser.displayAvatarURL({ dynamic: true }) : null;
+  const thumbnailURL = guild?.iconURL({ dynamic: true, size: 512 }) || avatar;
+
+  return new EmbedBuilder()
+    .setColor('#f47fff') // Màu hồng tím Nitro Boost
+    .setDescription(boostDescription)
+    .setThumbnail(thumbnailURL);
+}
+
+/**
  * Xử lý gửi lời cảm ơn khi có thành viên Boost server
  * @param {import('discord.js').GuildMember} member
  */
 export async function handleServerBoost(member) {
   try {
+    const memberId = member.id;
+    const now = Date.now();
+
+    // ==========================================
+    // P2: DEDUPLICATE BOOST NOTIFY
+    // ==========================================
+    const lastNotified = recentBoostNotifications.get(memberId);
+    if (lastNotified && now - lastNotified < BOOST_DEDUPE_WINDOW_MS) {
+      console.log(`[Boost] ℹ️ Đã gửi cảm ơn boost cho ${member.user?.tag || memberId} gần đây, bỏ qua thông báo trùng.`);
+      return;
+    }
+
     const guild = member.guild;
     const boostChannel = resolveBoostChannel(guild);
 
@@ -40,34 +86,21 @@ export async function handleServerBoost(member) {
       return;
     }
 
-    const guildName = config.guild?.name || guild.name || '୨୧ 木ノ葉・KONOHA ୨୧';
-    const guideMention = ROLES.GUIDE ? `<@&${ROLES.GUIDE}>` : '@案内役・GUIDE';
-    const guardMention = ROLES.GUARD ? `<@&${ROLES.GUARD}>` : '@護衛・GUARD';
-    const memberMention = `<@${member.id}>`;
-
-    // Nội dung văn bản cảm ơn Boost chuẩn xác 100% theo ảnh
-    const boostDescription = [
-      `${guideMention} ${guardMention} đâu ra cảm ơn ${memberMention} đã Boost cho **${guildName}** đi nào.`,
-      '',
-      'Một chiếc Boost nhỏ, nhưng là một sự ủng hộ thật lớn dành cho Konoha.',
-      'Cảm ơn bạn vì đã góp phần giúp ngôi làng ngày càng đẹp và phát triển hơn.',
-      '',
-      '「 Konoha trân trọng sự đồng hành của bạn. 」',
-    ].join('\n');
-
-    const thumbnailURL = guild.iconURL({ dynamic: true, size: 512 }) || member.user.displayAvatarURL({ dynamic: true });
-
-    // Giao diện V2: Chỉ dùng duy nhất Embed màu tím/hồng Nitro đặc trưng
-    const boostEmbed = new EmbedBuilder()
-      .setColor('#f47fff') // Màu hồng tím Nitro Boost
-      .setDescription(boostDescription)
-      .setThumbnail(thumbnailURL);
+    const boostEmbed = createBoostEmbed(guild, member);
 
     await boostChannel.send({
       embeds: [boostEmbed],
     });
 
-    console.log(`[Boost] ✅ Đã gửi lời cảm ơn Boost cho ${member.user.tag} tại #${boostChannel.name}`);
+    // Cập nhật timestamp vào deduplication cache
+    recentBoostNotifications.set(memberId, now);
+
+    // Tự động dọn dẹp cache sau thời gian TTL
+    setTimeout(() => {
+      recentBoostNotifications.delete(memberId);
+    }, BOOST_DEDUPE_WINDOW_MS);
+
+    console.log(`[Boost] ✅ Đã gửi lời cảm ơn Boost cho ${member.user?.tag || memberId} tại #${boostChannel.name}`);
   } catch (error) {
     console.error('[Boost] ❌ Lỗi xử lý cảm ơn Boost:', error);
   }

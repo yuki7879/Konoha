@@ -1,4 +1,16 @@
 !KX1
+@A002|A>C|R|D
+REF|C002
+T|stabilize-core-before-booking
+D|done:P0,P1,P2-stabilization-complete
+A|ticket-key=userId+type-in-topic;mutex-lock;auth-close-in-code
+A|partials=Message,Channel;drop-MessageContent;process-error-hooks
+A|runtime-store=data/runtime.json;clean-config.json;gitignored
+A|validateConfig-preflight;permission-preflight;boost-dedupe
+A|reusable-embed-builders;test:smoke-added;node-engines>=18;runbook
+V|smoke-test-passed;modules-verified
+N|ready-for-booking-state-machine
+.
 @A000|A>C|S|D
 D|bus-ready
 .

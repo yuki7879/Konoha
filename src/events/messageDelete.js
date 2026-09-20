@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
-import { config } from '../config.js';
+import { ENV } from '../config.js';
+import { getPanelMessageId } from '../utils/runtimeStore.js';
 import { ensureTicketPanel } from '../modules/ticket/ticketRecovery.js';
 
 export default {
@@ -9,14 +10,20 @@ export default {
    * @param {import('discord.js').Message} message
    */
   async execute(message) {
-    if (!message.guild) return;
+    const ticketPanelId = getPanelMessageId('ticket');
+    if (!ticketPanelId) return;
 
-    // Kiểm tra xem tin nhắn vừa bị xóa có phải là Container Ticket không
-    const ticketPanelId = config.panels?.ticket;
-    if (ticketPanelId && message.id === ticketPanelId) {
-      console.log(`[Ticket Auto-Healing] 🚨 Phát hiện Container Ticket (ID: ${message.id}) vừa bị xóa khỏi kênh!`);
+    // Tin nhắn partial vẫn có message.id
+    if (message.id === ticketPanelId) {
+      console.log(`[Ticket Auto-Healing] 🚨 Phát hiện Container Ticket (ID: ${message.id}) vừa bị xóa!`);
       console.log('[Ticket Auto-Healing] 🔄 Đang tự động gửi lại Container Ticket mới ngay lập tức...');
-      await ensureTicketPanel(message.guild);
+
+      const guild = message.guild || message.client.guilds.cache.get(ENV.GUILD_ID);
+      if (guild) {
+        await ensureTicketPanel(guild);
+      } else {
+        console.error('[Ticket Auto-Healing] ❌ Không thể xác định Guild để tự phục hồi ticket panel.');
+      }
     }
   },
 };

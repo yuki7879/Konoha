@@ -1,19 +1,12 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Routes } from 'discord.js';
-import { CHANNELS, config } from '../../config.js';
+import { CHANNELS } from '../../config.js';
 import { createTicketPanelV2 } from './ticketPanel.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '../../..');
-const configFilePath = path.join(rootDir, 'config.json');
+import { getPanelMessageId, setPanelMessageId } from '../../utils/runtimeStore.js';
 
 /**
  * Đảm bảo Container Ticket V2 luôn tồn tại:
  * - Dùng Discord Components V2 (Container type 17 chứa các nút bên trong).
- * - Tự động Edit nếu đã có ID, hoặc gửi mới & lưu ID nếu bị mất.
+ * - Tự động Edit nếu đã có ID trong runtimeStore, hoặc gửi mới & lưu ID vào data/runtime.json nếu bị mất.
  * @param {import('discord.js').Guild} guild
  */
 export async function ensureTicketPanel(guild) {
@@ -25,7 +18,7 @@ export async function ensureTicketPanel(guild) {
     }
 
     const payload = createTicketPanelV2(guild);
-    const existingMessageId = config.panels?.ticket;
+    const existingMessageId = getPanelMessageId('ticket');
 
     if (existingMessageId) {
       try {
@@ -38,7 +31,7 @@ export async function ensureTicketPanel(guild) {
           return updated;
         }
       } catch (err) {
-        console.warn(`[Ticket Recovery] ⚠️ Container cũ (ID: ${existingMessageId}) đã bị xóa hoặc không tìm thấy!`);
+        console.warn(`[Ticket Recovery] ⚠️ Container cũ (ID: ${existingMessageId}) không tìm thấy trên kênh, chuẩn bị gửi mới...`);
       }
     }
 
@@ -49,12 +42,9 @@ export async function ensureTicketPanel(guild) {
       { body: payload }
     );
 
-    // Cập nhật ID mới vào config.json
-    config.panels = config.panels || {};
-    config.panels.ticket = newMessage.id;
-
-    fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2), 'utf-8');
-    console.log(`[Ticket Recovery] ✅ Đã gửi Container V2 mới thành công và lưu ID: ${newMessage.id} vào config.json!`);
+    // Cập nhật ID mới vào data/runtime.json (không đụng vào config.json)
+    setPanelMessageId('ticket', newMessage.id);
+    console.log(`[Ticket Recovery] ✅ Đã gửi Container V2 mới thành công và lưu ID: ${newMessage.id} vào data/runtime.json!`);
 
     return newMessage;
   } catch (error) {
