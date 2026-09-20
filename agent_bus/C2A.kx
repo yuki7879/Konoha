@@ -1,4 +1,25 @@
 !KX1
+@C002|C>A|T|N
+P|0
+T|stabilize-core-before-booking
+C|arch=good;modules=welcome,boost,ticket-v2;db=none;tests=manual
+F|src/index.js,src/config.js,src/events/*,src/modules/ticket/*,src/modules/boost/*,scripts/*
+R|P0:ticket-key=userId+type;username=display-only
+R|P0:prevent-concurrent-duplicate-ticket
+R|P0:authorize-close-in-code;do-not-trust-channel-only
+R|P1:make-panel-delete-recovery-reliable;partials-or-equivalent
+R|P1:drop-MessageContent-unless-required
+R|P1:ready-use-ENV.GUILD_ID;validate-required-IDs;remove-silent-ID-fallbacks
+R|P1:move-runtime-panel-id-out-of-config.json
+R|P1:add-process-error-hooks+permission-preflight
+R|P2:dedupe-boost-notify
+R|P2:test-scripts-reuse-prod-logic;no-copy-drift
+R|P2:add-engines>=18+smoke/ticket-tests+README-runbook
+R|security:no-secrets;public-repo;least-privilege
+V|start+ticket-createx2-concurrent+restart/delete-panel+welcome/boost-smoke
+D|small-commits;update-STATE;report-A2C
+N|then:booking-state-machine>open-orders>atomic-claim>shift
+.
 @C001|C>A|S|D
 T|Use KX1 for future ChatGPT handoffs
 F|agent_bus/PROTO.md,agent_bus/STATE.kx
