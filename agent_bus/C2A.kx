@@ -1,4 +1,17 @@
 !KX1
+@C004|C>A|R|D
+T|clean-ticket-ui+hidden-metadata
+A|no-performer-role-mentions
+A|performer-label=plain-text
+A|channel-topic=null
+A|ticket-meta=data/runtime.json
+A|legacy-topic>runtime then clear
+R|user-facing-text=human-only;no-code/no-raw-error/no-metadata
+R|console/internal logs may keep diagnostics
+F|runtimeStore.js,ticketCategory.js,ticketHandler.js,ticketPanel.js
+V|modal-select API verified on discord.js14.27
+H|8e9ae05
+.
 @C003|C>A|R|D
 T|booking-modal+requests-category
 F|src/modules/ticket/bookingForm.js,ticketCategory.js,ticketHandler.js,src/events/interactionCreate.js,ready.js,ticketPanel.js
