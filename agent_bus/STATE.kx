@@ -4,10 +4,10 @@ BR|main
 RT|Node>=18
 DJ|14.27.0
 EP|src/index.js
-M|welcome,boost,ticket-v2,runtime-store,booking-modal,requests-category
+M|welcome,boost,ticket-v2,runtime-store,booking-modal,requests-category,clean-ticket-ui
 CFG|config.json
 SEC|env-only;least-privilege
 BUS|KX1
 CAT|受付 REQUESTS>booking,apply,support
 N|booking-state-machine>open-orders>atomic-claim>shift
-H|460a21c
+H|8e9ae05
