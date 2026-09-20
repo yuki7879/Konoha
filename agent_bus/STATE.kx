@@ -8,5 +8,5 @@ M|welcome,boost,ticket-v2
 CFG|config.json
 SEC|env-only
 BUS|KX1
-N|ticket-hardening,booking-flow,open-orders,shift
-H|86e83f5
+N|core-stabilize>booking-flow>open-orders>shift
+H|053412d
