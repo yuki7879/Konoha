@@ -1,8 +1,11 @@
 import { Events } from 'discord.js';
 import {
+  handleBookingStart,
+  handleBookingModalSubmit,
   handleTicketCreate,
   handleTicketClose,
 } from '../modules/ticket/ticketHandler.js';
+import { BOOKING_MODAL_ID } from '../modules/ticket/bookingForm.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -11,25 +14,27 @@ export default {
    * @param {import('discord.js').Interaction} interaction
    */
   async execute(interaction) {
-    // Xử lý các tương tác Button
     if (interaction.isButton()) {
       const customId = interaction.customId;
 
-      // Nút tạo Ticket (ticket_booking, ticket_apply, ticket_support)
-      if (
-        customId === 'ticket_booking' ||
-        customId === 'ticket_apply' ||
-        customId === 'ticket_support'
-      ) {
+      if (customId === 'ticket_booking') {
+        await handleBookingStart(interaction);
+        return;
+      }
+
+      if (customId === 'ticket_apply' || customId === 'ticket_support') {
         await handleTicketCreate(interaction);
         return;
       }
 
-      // Nút đóng Ticket (ticket_close)
       if (customId === 'ticket_close') {
         await handleTicketClose(interaction);
         return;
       }
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === BOOKING_MODAL_ID) {
+      await handleBookingModalSubmit(interaction);
     }
   },
 };
