@@ -1,0 +1,11 @@
+!KX1
+P|KonohaBooking
+BR|main
+RT|Node>=18
+DJ|14.27.0
+EP|src/index.js
+M|welcome,boost,ticket-v2
+CFG|config.json
+SEC|env-only
+N|ticket-hardening,booking-flow,open-orders,shift
+H|b541ac1
