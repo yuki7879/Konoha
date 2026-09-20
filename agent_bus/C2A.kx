@@ -1,0 +1,9 @@
+!KX1
+@C001|C>A|S|D
+T|Use KX1 for future ChatGPT handoffs
+F|agent_bus/PROTO.md,agent_bus/STATE.kx
+R|Read PROTO once/session
+R|Per handoff read STATE + newest C2A block
+R|Reply via A2C unless code changes are required
+D|bus-ready
+.
