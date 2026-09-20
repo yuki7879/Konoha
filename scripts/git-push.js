@@ -11,7 +11,17 @@ const gitExe = '"C:\\Program Files\\Git\\cmd\\git.exe"';
 function run(cmd) {
   console.log(`> ${cmd}`);
   try {
-    const out = execSync(cmd, { cwd: rootDir, encoding: 'utf-8', stdio: 'pipe' });
+    const out = execSync(cmd, {
+      cwd: rootDir,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      timeout: 15000,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GCM_INTERACTIVE: 'never',
+      },
+    });
     if (out) console.log(out);
     return out;
   } catch (err) {
@@ -21,7 +31,7 @@ function run(cmd) {
   }
 }
 
-const commitMsg = process.argv[2] || 'feat: complete block C002 - core stabilization, runtime store, and ticket mutex';
+const commitMsg = process.argv[2] || 'feat: complete block C002 - core stabilization, runtime store, ticket mutex, and role pings';
 
 console.log('[Git Sync] Bắt đầu gom code và đẩy lên GitHub...');
 run(`${gitExe} status -s`);
