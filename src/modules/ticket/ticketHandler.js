@@ -9,6 +9,12 @@ import {
 import { ROLES, CHANNELS } from '../../config.js';
 import { createBookingModal, readBookingModal } from './bookingForm.js';
 import { ensureTicketCategory } from './ticketCategory.js';
+import {
+  deleteTicketRecord,
+  findTicketRecord,
+  getTicketRecord,
+  setTicketRecord,
+} from '../../utils/runtimeStore.js';
 
 const pendingCreations = new Set();
 const closingChannels = new Set();
@@ -107,13 +113,17 @@ export async function handleTicketCreate(interaction, options = {}) {
     const guild = interaction.guild;
     const requestsCategory = await ensureTicketCategory(guild);
 
-    const existingChannel = guild.channels.cache.find(
-      (channel) =>
-        channel.type === ChannelType.GuildText &&
-        channel.topic?.includes('konoha:ticket') &&
-        channel.topic.includes(`owner:${user.id}`) &&
-        channel.topic.includes(`type:${ticketConfig.name}`)
-    );
+    const existingRecord = findTicketRecord({
+      ownerId: user.id,
+      type: ticketConfig.name,
+    });
+    const existingChannel = existingRecord
+      ? guild.channels.cache.get(existingRecord.channelId)
+      : null;
+
+    if (existingRecord && !existingChannel) {
+      deleteTicketRecord(existingRecord.channelId);
+    }
 
     if (existingChannel) {
       if (existingChannel.parentId !== requestsCategory.id) {
@@ -121,7 +131,7 @@ export async function handleTicketCreate(interaction, options = {}) {
       }
 
       return interaction.editReply({
-        content: `⚠️ Bạn đã có một phòng ${ticketConfig.title} đang mở tại <#${existingChannel.id}>.`,
+        content: `Bạn đã có một phòng đang mở tại <#${existingChannel.id}>.`,
       });
     }
 
@@ -179,22 +189,22 @@ export async function handleTicketCreate(interaction, options = {}) {
     const sanitizedUsername =
       user.username.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'user';
     const channelName = `${ticketConfig.name}-${sanitizedUsername}`;
-    const performerMeta = bookingData?.performerType
-      ? ` | performer:${bookingData.performerType}`
-      : '';
-    const channelTopic =
-      `konoha:ticket | type:${ticketConfig.name} | owner:${user.id}${performerMeta} | created:${Date.now()}`;
-
     const ticketChannel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
       parent: requestsCategory.id,
-      topic: channelTopic,
       permissionOverwrites,
     });
 
-    const pings = roleIds
-      .filter((id) => guild.roles.cache.has(id))
+    setTicketRecord(ticketChannel.id, {
+      ownerId: user.id,
+      type: ticketConfig.name,
+      performerType: bookingData?.performerType || null,
+      createdAt: Date.now(),
+    });
+
+    const staffPings = ticketConfig.rolesToPing
+      .filter((id) => id && guild.roles.cache.has(id))
       .map((id) => `<@&${id}>`)
       .join(' ');
 
@@ -210,8 +220,8 @@ export async function handleTicketCreate(interaction, options = {}) {
     if (bookingData) {
       const performerLabel =
         bookingData.performerType === 'prince'
-          ? (ROLES.PRINCE ? `<@&${ROLES.PRINCE}>` : '王子・PRINCE')
-          : (ROLES.PRINCESS ? `<@&${ROLES.PRINCESS}>` : '姫君・PRINCESS');
+          ? '王子・PRINCE'
+          : '姫君・PRINCESS';
 
       insideEmbed.addFields(
         {
@@ -244,7 +254,7 @@ export async function handleTicketCreate(interaction, options = {}) {
     );
 
     await ticketChannel.send({
-      content: `${pings} <@${user.id}>`.trim(),
+      content: `${staffPings} <@${user.id}>`.trim(),
       embeds: [insideEmbed],
       components: [closeRow],
     });
@@ -277,8 +287,15 @@ export async function handleTicketCreate(interaction, options = {}) {
       }
     }
 
+    const successText =
+      ticketConfig.name === 'booking'
+        ? 'Đã tạo phòng đặt lịch'
+        : ticketConfig.name === 'apply'
+          ? 'Đã tạo phòng ứng tuyển'
+          : 'Đã tạo phòng hỗ trợ';
+
     await interaction.editReply({
-      content: `✅ Đã mở phòng ${ticketConfig.name} cho bạn tại <#${ticketChannel.id}>.`,
+      content: `${successText} tại <#${ticketChannel.id}>.`,
     });
   } catch (error) {
     console.error('[Ticket] ❌ Lỗi khi tạo kênh ticket:', error);
@@ -305,9 +322,8 @@ export async function handleTicketClose(interaction) {
     });
   }
 
-  const topic = channel.topic || '';
-  const ownerMatch = topic.match(/owner:(\d+)/);
-  const ownerId = ownerMatch ? ownerMatch[1] : null;
+  const ticketRecord = getTicketRecord(channel.id);
+  const ownerId = ticketRecord?.ownerId || null;
 
   const isOwner = ownerId && user.id === ownerId;
   const staffRoles = [ROLES.HOKAGE, ROLES.ANBU, ROLES.GUARD].filter(Boolean);
@@ -345,6 +361,7 @@ export async function handleTicketClose(interaction) {
 
   setTimeout(async () => {
     try {
+      deleteTicketRecord(channel.id);
       await channel.delete();
     } catch (error) {
       console.error('[Ticket Close] ❌ Không thể xóa kênh ticket:', error.message);
