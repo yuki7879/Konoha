@@ -1,0 +1,19 @@
+{
+  "name": "konoha-booking-bot",
+  "version": "1.0.0",
+  "description": "Discord Bot cho server ୨୧ 木ノ葉・KONOHA ୨୧",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test:welcome": "node scripts/test-welcome.js",
+    "test:boost": "node scripts/test-boost.js",
+    "send:ticket": "node scripts/send-ticket-panel.js",
+    "push": "node scripts/git-push.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.17.3",
+    "dotenv": "^16.4.7"
+  }
+}
