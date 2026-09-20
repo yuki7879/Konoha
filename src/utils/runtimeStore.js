@@ -8,73 +8,105 @@ const rootDir = path.resolve(__dirname, '../..');
 const dataDir = path.join(rootDir, 'data');
 const runtimeFilePath = path.join(dataDir, 'runtime.json');
 
+function emptyState() {
+  return { panels: {}, tickets: {} };
+}
+
+function normalizeState(state = {}) {
+  return {
+    panels: state.panels || {},
+    tickets: state.tickets || {},
+  };
+}
+
 function ensureDataDir() {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 }
 
-/**
- * Đọc toàn bộ trạng thái runtime từ file data/runtime.json
- * @returns {object}
- */
 export function getRuntimeState() {
   ensureDataDir();
+
   if (!fs.existsSync(runtimeFilePath)) {
-    return { panels: {} };
+    return emptyState();
   }
+
   try {
     const raw = fs.readFileSync(runtimeFilePath, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('[RuntimeStore] ⚠️ Lỗi khi đọc runtime.json, khởi tạo lại:', err.message);
-    return { panels: {} };
+    return normalizeState(JSON.parse(raw));
+  } catch (error) {
+    console.error('[RuntimeStore] Không thể đọc dữ liệu runtime:', error.message);
+    return emptyState();
   }
 }
 
-/**
- * Ghi trạng thái runtime vào data/runtime.json
- * @param {object} state
- */
 export function saveRuntimeState(state) {
   ensureDataDir();
+
   try {
-    fs.writeFileSync(runtimeFilePath, JSON.stringify(state, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('[RuntimeStore] ❌ Lỗi khi ghi runtime.json:', err.message);
+    fs.writeFileSync(
+      runtimeFilePath,
+      JSON.stringify(normalizeState(state), null, 2),
+      'utf-8'
+    );
+  } catch (error) {
+    console.error('[RuntimeStore] Không thể lưu dữ liệu runtime:', error.message);
   }
 }
 
-/**
- * Lấy message ID của panel đang hoạt động
- * @param {string} panelKey - Ví dụ: 'ticket'
- * @returns {string|null}
- */
 export function getPanelMessageId(panelKey) {
   const state = getRuntimeState();
   return state.panels?.[panelKey] || null;
 }
 
-/**
- * Lưu message ID của panel đang hoạt động
- * @param {string} panelKey - Ví dụ: 'ticket'
- * @param {string} messageId
- */
 export function setPanelMessageId(panelKey, messageId) {
   const state = getRuntimeState();
-  if (!state.panels) state.panels = {};
   state.panels[panelKey] = messageId;
   saveRuntimeState(state);
 }
 
-/**
- * Xóa message ID của panel
- * @param {string} panelKey
- */
 export function clearPanelMessageId(panelKey) {
   const state = getRuntimeState();
+
   if (state.panels?.[panelKey]) {
     delete state.panels[panelKey];
     saveRuntimeState(state);
   }
+}
+
+export function getTicketRecord(channelId) {
+  const state = getRuntimeState();
+  return state.tickets?.[channelId] || null;
+}
+
+export function getTicketRecords() {
+  const state = getRuntimeState();
+  return state.tickets || {};
+}
+
+export function setTicketRecord(channelId, record) {
+  const state = getRuntimeState();
+  state.tickets[channelId] = {
+    ...record,
+    channelId,
+  };
+  saveRuntimeState(state);
+}
+
+export function deleteTicketRecord(channelId) {
+  const state = getRuntimeState();
+
+  if (state.tickets?.[channelId]) {
+    delete state.tickets[channelId];
+    saveRuntimeState(state);
+  }
+}
+
+export function findTicketRecord({ ownerId, type }) {
+  const tickets = Object.values(getTicketRecords());
+
+  return tickets.find(
+    (ticket) => ticket.ownerId === ownerId && ticket.type === type
+  ) || null;
 }
