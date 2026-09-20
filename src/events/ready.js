@@ -1,6 +1,7 @@
 import { Events, ActivityType, PermissionFlagsBits } from 'discord.js';
 import { CHANNELS, ROLES, ENV, config } from '../config.js';
 import { ensureTicketPanel } from '../modules/ticket/ticketRecovery.js';
+import { ensureTicketCategory, REQUESTS_CATEGORY_NAME } from '../modules/ticket/ticketCategory.js';
 
 export default {
   name: Events.ClientReady,
@@ -24,9 +25,6 @@ export default {
       status: 'online',
     });
 
-    // ==========================================
-    // 1. KIỂM TRA SERVER THEO ENV.GUILD_ID
-    // ==========================================
     const guildId = ENV.GUILD_ID;
     const guild = await client.guilds.fetch(guildId).catch(() => null);
     if (!guild) {
@@ -36,9 +34,6 @@ export default {
 
     console.log(`[Preflight] 🏰 Kết nối thành công tới Guild: "${guild.name}" (${guild.id})`);
 
-    // ==========================================
-    // 2. PERMISSION PREFLIGHT CHECK
-    // ==========================================
     const me = await guild.members.fetchMe().catch(() => null);
     if (me) {
       const requiredPermissions = [
@@ -59,13 +54,10 @@ export default {
       }
 
       if (missingPermissions.length > 0) {
-        console.warn(`[Preflight] ⚠️ CẢNH BÁO: Bot đang thiếu các quyền sau: ${missingPermissions.join(', ')}`);
+        console.warn(`[Preflight] ⚠️ Bot đang thiếu các quyền sau: ${missingPermissions.join(', ')}`);
       }
     }
 
-    // ==========================================
-    // 3. XÁC MINH CÁC KÊNH & CATEGORY CHÍNH
-    // ==========================================
     console.log('[Preflight] 📁 Xác minh các kênh & danh mục cần thiết:');
     const checkedChannels = [
       { key: 'MAIN_CHAT', id: CHANNELS.MAIN_CHAT, label: 'Chat chung' },
@@ -80,13 +72,12 @@ export default {
         console.warn(`  - [${item.key}] ⚠️ Chưa cấu hình ID`);
         continue;
       }
-      const ch = guild.channels.cache.get(item.id);
-      console.log(`  - [${item.key}] (${item.label}): ${ch ? `✅ #${ch.name}` : `⚠️ Không tìm thấy kênh ID ${item.id}`}`);
+      const channel = guild.channels.cache.get(item.id);
+      console.log(
+        `  - [${item.key}] (${item.label}): ${channel ? `✅ #${channel.name}` : `⚠️ Không tìm thấy kênh ID ${item.id}`}`
+      );
     }
 
-    // ==========================================
-    // 4. XÁC MINH CÁC ROLE QUAN TRỌNG
-    // ==========================================
     console.log('[Preflight] 🎭 Xác minh các Role hệ thống:');
     const checkedRoles = [
       { key: 'CUSTOM', id: ROLES.CUSTOM, label: 'Role thành viên mới' },
@@ -95,6 +86,8 @@ export default {
       { key: 'HOKAGE', id: ROLES.HOKAGE, label: 'Role Hokage' },
       { key: 'ANBU', id: ROLES.ANBU, label: 'Role Anbu' },
       { key: 'GUARD', id: ROLES.GUARD, label: 'Role Guard' },
+      { key: 'PRINCE', id: ROLES.PRINCE, label: 'Role Prince' },
+      { key: 'PRINCESS', id: ROLES.PRINCESS, label: 'Role Princess' },
     ];
 
     for (const item of checkedRoles) {
@@ -102,15 +95,23 @@ export default {
         console.warn(`  - [${item.key}] ⚠️ Chưa cấu hình ID`);
         continue;
       }
-      const r = guild.roles.cache.get(item.id);
-      console.log(`  - [${item.key}] (${item.label}): ${r ? `✅ @${r.name}` : `⚠️ Không tìm thấy Role ID ${item.id}`}`);
+      const role = guild.roles.cache.get(item.id);
+      console.log(
+        `  - [${item.key}] (${item.label}): ${role ? `✅ @${role.name}` : `⚠️ Không tìm thấy Role ID ${item.id}`}`
+      );
     }
 
-    // ==========================================
-    // 5. TỰ ĐỘNG KHÔI PHỤC PANEL TICKET V2 NẾU CẦN
-    // ==========================================
+    console.log(`[Preflight] 🗂️ Kiểm tra danh mục yêu cầu: ${REQUESTS_CATEGORY_NAME}`);
+    const requestsCategory = await ensureTicketCategory(guild);
+    console.log(
+      requestsCategory
+        ? `[Preflight] ✅ Danh mục yêu cầu sẵn sàng: ${requestsCategory.name}`
+        : '[Preflight] ❌ Không thể chuẩn bị danh mục yêu cầu'
+    );
+
     console.log('[Preflight] 🎫 Kiểm tra trạng thái Ticket Panel V2...');
     await ensureTicketPanel(guild);
+
     console.log('==================================================');
     console.log('🍃 Konoha Bot đã sẵn sàng hoạt động 100%!');
     console.log('==================================================');
