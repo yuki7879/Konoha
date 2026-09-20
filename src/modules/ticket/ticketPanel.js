@@ -8,8 +8,6 @@ import { ROLES, config } from '../../config.js';
  */
 export function createTicketPanelV2(guild) {
   const guildName = config.guild?.name || guild?.name || '୨୧ 木ノ葉・KONOHA ୨୧';
-  const princessMention = ROLES.PRINCESS ? `<@&${ROLES.PRINCESS}>` : '@姫君・PRINCESS';
-  const princeMention = ROLES.PRINCE ? `<@&${ROLES.PRINCE}>` : '@王子・PRINCE';
   const anbuMention = ROLES.ANBU ? `<@&${ROLES.ANBU}>` : '@暗部・ANBU';
   const guardMention = ROLES.GUARD ? `<@&${ROLES.GUARD}>` : '@護衛・GUARD';
 
@@ -19,7 +17,7 @@ export function createTicketPanelV2(guild) {
     `Trạm tiếp nhận yêu cầu & hỗ trợ của **${guildName}**.`,
     '',
     '💌 **Đặt lịch hẹn (Booking)**',
-    `Nhập dịch vụ, chọn ${princeMention} / ${princessMention}; ngân sách và thời gian có thể để trống.`,
+    'Nhập dịch vụ, chọn 王子・PRINCE hoặc 姫君・PRINCESS; ngân sách và thời gian có thể để trống.',
     '',
     '📝 **Ứng tuyển (Apply)**',
     'Đăng ký gia nhập và trở thành một phần của đại gia đình Konoha.',
