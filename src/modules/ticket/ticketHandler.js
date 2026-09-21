@@ -2,6 +2,7 @@ import {
   ChannelType,
   PermissionsBitField,
   EmbedBuilder,
+  AttachmentBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -9,6 +10,7 @@ import {
 import { ROLES, CHANNELS } from '../../config.js';
 import { createBookingModal, readBookingModal } from './bookingForm.js';
 import { ensureTicketCategory } from './ticketCategory.js';
+import { renderTicketPanel } from './ticketImage.js';
 import {
   deleteTicketRecord,
   findTicketRecord,
@@ -208,42 +210,48 @@ export async function handleTicketCreate(interaction, options = {}) {
       .map((id) => `<@&${id}>`)
       .join(' ');
 
-    const insideEmbed = new EmbedBuilder()
-      .setColor(ticketConfig.color)
-      .setTitle(ticketConfig.title)
-      .setDescription(
-        `Chào <@${user.id}>,\n\n${ticketConfig.welcomeMessage}\n\nNhấn nút **Đóng Ticket** khi trao đổi kết thúc.`
-      )
-      .setFooter({ text: 'Konoha Ticket System' })
-      .setTimestamp();
+    const performerLabel = bookingData
+      ? (bookingData.performerType === 'prince' ? '王子・PRINCE' : '姫君・PRINCESS')
+      : null;
 
-    if (bookingData) {
-      const performerLabel =
-        bookingData.performerType === 'prince'
-          ? '王子・PRINCE'
-          : '姫君・PRINCESS';
+    const ticketTypeLabel =
+      ticketConfig.name === 'booking'
+        ? 'Booking'
+        : ticketConfig.name === 'apply'
+          ? 'Apply'
+          : 'Hỗ trợ';
 
-      insideEmbed.addFields(
-        {
-          name: 'Dịch vụ',
-          value: bookingData.service,
-        },
-        {
-          name: 'Đào',
-          value: performerLabel,
-          inline: true,
-        },
-        {
-          name: 'Ngân sách',
-          value: bookingData.budget || 'Không ghi',
-          inline: true,
-        },
-        {
-          name: 'Thời gian',
-          value: bookingData.time || 'Linh hoạt',
-        }
-      );
-    }
+    const panelContent =
+      ticketConfig.name === 'booking'
+        ? bookingData?.service || 'Yêu cầu đặt lịch'
+        : ticketConfig.name === 'apply'
+          ? 'Ứng tuyển gia nhập Konoha'
+          : 'Yêu cầu hỗ trợ';
+
+    const noteParts = [];
+    if (performerLabel) noteParts.push(`Nhóm đào: ${performerLabel}`);
+    if (bookingData?.budget) noteParts.push(`Ngân sách: ${bookingData.budget}`);
+    if (bookingData?.time) noteParts.push(`Lịch mong muốn: ${bookingData.time}`);
+
+    const creatorName =
+      interaction.member?.displayName ||
+      user.globalName ||
+      user.username;
+
+    const ticketPanelBuffer = await renderTicketPanel({
+      creator: creatorName,
+      staff: 'Chưa tiếp nhận',
+      createdAt: Date.now(),
+      type: ticketTypeLabel,
+      status: 'Đang chờ tiếp nhận',
+      content: panelContent,
+      note: noteParts.join(' • ') || 'Trao đổi trực tiếp trong phòng.',
+    });
+
+    const ticketPanelAttachment = new AttachmentBuilder(ticketPanelBuffer, {
+      name: 'konoha-ticket.png',
+      description: 'Konoha Booking ticket panel',
+    });
 
     const closeRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -255,7 +263,7 @@ export async function handleTicketCreate(interaction, options = {}) {
 
     await ticketChannel.send({
       content: `${staffPings} <@${user.id}>`.trim(),
-      embeds: [insideEmbed],
+      files: [ticketPanelAttachment],
       components: [closeRow],
     });
 
